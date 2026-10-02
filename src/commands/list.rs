@@ -2,18 +2,17 @@ use anyhow::Result;
 use bollard::Docker;
 use futures::future::join_all;
 
-use crate::app;
+use crate::app::{self, InstalledApp};
 use crate::updates;
 
-/// List installed apps, running ones first.
+/// Build the listing of installed apps.
 ///
 /// Update checks reach out to registries, so they only run when asked: an
 /// offline machine should still get an instant answer.
-pub async fn list(docker: &Docker, check_updates: bool) -> Result<()> {
+pub async fn list(docker: &Docker, check_updates: bool) -> Result<String> {
     let apps = app::list(docker).await?;
     if apps.is_empty() {
-        println!("No apps installed. Install one with: erst install <app>");
-        return Ok(());
+        return Ok("No apps installed. Install one with: erst install <app>".to_string());
     }
     let apps = sort_by_running(apps);
 
@@ -28,8 +27,8 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<()> {
         Vec::new()
     };
 
-    println!(
-        "{:<20} {:<30} {:<12} {:<12} {:<10} {:<10}",
+    let mut out = format!(
+        "{:<20} {:<30} {:<14} {:<14} {:<10} {:<10}\n",
         "NAME", "IMAGE", "STATUS", "PORTS", "USER", "UPDATE"
     );
     for (index, app) in apps.iter().enumerate() {
@@ -37,36 +36,38 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<()> {
             Some(check) => update_column(*check),
             None => "-",
         };
-        let ports = app
-            .settings
-            .ports
-            .iter()
-            .map(|port| port.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        println!(
-            "{:<20} {:<30} {:<12} {:<12} {:<10} {:<10}",
+        out.push_str(&format!(
+            "{:<20} {:<30} {:<14} {:<14} {:<10} {:<10}\n",
             app.settings.name,
             app.settings.image,
             app.status,
-            ports,
-            user_column(&app.settings),
+            ports(app),
+            user_column(app),
             update
-        );
+        ));
     }
 
     if checks.iter().any(|check| matches!(check, Some(true))) {
-        println!("\nSome apps have a newer image: erst update <app>");
+        out.push_str("\nSome apps have a newer image: erst update <app>");
     }
-    Ok(())
+    Ok(out)
+}
+
+fn ports(app: &InstalledApp) -> String {
+    app.settings
+        .ports
+        .iter()
+        .map(|port| port.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// The container's user, flagged with `!` when it is root.
-fn user_column(settings: &app::AppSettings) -> String {
-    if settings.runs_as_root() {
+fn user_column(app: &InstalledApp) -> String {
+    if app.settings.runs_as_root() {
         "root!".to_string()
     } else {
-        settings.user.trim().to_string()
+        app.settings.user.trim().to_string()
     }
 }
 
@@ -79,7 +80,7 @@ fn update_column(update: Option<bool>) -> &'static str {
     }
 }
 
-fn sort_by_running(mut apps: Vec<app::InstalledApp>) -> Vec<app::InstalledApp> {
+fn sort_by_running(mut apps: Vec<InstalledApp>) -> Vec<InstalledApp> {
     apps.sort_by(|a, b| {
         b.running
             .cmp(&a.running)

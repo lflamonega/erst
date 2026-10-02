@@ -4,8 +4,9 @@ use clap::{Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(name = "erst", version, about, max_term_width = 100)]
 pub struct Cli {
+    /// The dashboard opens when no subcommand is given.
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -28,6 +29,8 @@ pub enum Command {
         #[arg(long)]
         no_harden: bool,
     },
+    /// Open the dashboard.
+    Dashboard,
     /// List installed apps.
     #[command(visible_alias = "ls")]
     List {

@@ -9,9 +9,16 @@ mod update;
 
 pub use backup::{backup, restore};
 pub use catalog::catalog;
-pub use install::install;
+pub use install::{install, install_entry};
 pub use lifecycle::{restart, start, stop};
 pub use list::list;
-pub use logs::logs;
+pub use logs::{logs, tail_logs};
 pub use remove::remove;
 pub use update::update;
+
+/// Where a command writes its progress and warnings.
+///
+/// The CLI prints these straight to the terminal, while the dashboard collects
+/// them to show in its status line: a command that printed on its own would
+/// corrupt the alternate screen.
+pub type Reporter<'a> = &'a mut dyn FnMut(&str);
