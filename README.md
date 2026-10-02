@@ -9,9 +9,10 @@ image — and manage them with short, human commands.
 ## Requirements
 
 - A running container runtime: Docker (rootful or rootless) or Podman (rootless).
-  `erst` probes the available sockets automatically; no root is needed as long as
-  your user can access the runtime's socket.
-- Linux or macOS.
+  `erst` probes the available endpoints automatically (Unix sockets on Linux and
+  macOS, the Docker Desktop named pipe on Windows); no root is needed as long as
+  your user can access the runtime.
+- Linux, macOS or Windows.
 
 ## Install
 
