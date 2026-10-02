@@ -1,0 +1,20 @@
+[package]
+name = "erst"
+version = "0.1.0"
+edition = "2024"
+description = "Install and manage containers from the command line, without knowing containers."
+license = "MIT"
+repository = "https://github.com/lflamonega/erst"
+
+[dependencies]
+anyhow = "1"
+bollard = "0.21"
+clap = { version = "4", features = ["derive"] }
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+
+[profile.release]
+lto = true
+strip = true
