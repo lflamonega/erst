@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, bail};
 use bollard::Docker;
-use bollard::models::{ContainerCreateBody, ContainerSummary};
+use bollard::models::{ContainerCreateBody, ContainerSummary, ContainerSummaryStateEnum};
 use bollard::query_parameters::{ListContainersOptionsBuilder, RemoveContainerOptionsBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -20,15 +20,46 @@ pub struct AppSettings {
     pub ports: Vec<PortMapping>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    /// Effective user of the container, as declared by the image.
+    /// Empty means the image runs as root.
+    #[serde(default)]
+    pub user: String,
+    /// Whether hardening (`no-new-privileges` + reduced capabilities) applies.
+    #[serde(default = "default_true")]
+    pub harden: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl AppSettings {
+    /// Settings for a fresh install; the user and hardening flags are filled
+    /// in once the image has been pulled and inspected.
+    pub fn new(name: impl Into<String>, image: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            image: image.into(),
+            host: None,
+            ports: Vec::new(),
+            env: BTreeMap::new(),
+            user: String::new(),
+            harden: true,
+        }
+    }
+
     /// Access URLs derived from the published ports.
     pub fn urls(&self) -> Vec<String> {
         self.ports
             .iter()
             .map(|port| format!("http://localhost:{}", port.host))
             .collect()
+    }
+
+    /// Whether the container runs as root inside the container.
+    pub fn runs_as_root(&self) -> bool {
+        let user = self.user.trim();
+        user.is_empty() || user == "root" || user == "0" || user == "0:0"
     }
 }
 
@@ -126,9 +157,10 @@ fn parse_container(container: ContainerSummary) -> Option<InstalledApp> {
         settings,
         container_id: container.id?,
         status: container.status.unwrap_or_default(),
-        running: container.state.as_ref().is_some_and(|state| {
-            matches!(state, bollard::models::ContainerSummaryStateEnum::RUNNING)
-        }),
+        running: container
+            .state
+            .as_ref()
+            .is_some_and(|state| matches!(state, ContainerSummaryStateEnum::RUNNING)),
     })
 }
 
@@ -176,6 +208,25 @@ pub fn container_body(settings: &AppSettings) -> ContainerCreateBody {
         );
     }
 
+    let security_opt = if settings.harden {
+        Some(vec!["no-new-privileges:true".to_string()])
+    } else {
+        None
+    };
+
+    // Capabilities that ordinary apps do not need and that widen the blast
+    // radius of a container escape. Apps that need them can opt out with
+    // `erst install --no-harden`.
+    let cap_drop = if settings.harden {
+        Some(vec![
+            "AUDIT_WRITE".to_string(),
+            "MKNOD".to_string(),
+            "SETFCAP".to_string(),
+        ])
+    } else {
+        None
+    };
+
     ContainerCreateBody {
         image: Some(settings.image.clone()),
         labels: Some(labels),
@@ -187,6 +238,8 @@ pub fn container_body(settings: &AppSettings) -> ContainerCreateBody {
                 name: Some(bollard::models::RestartPolicyNameEnum::UNLESS_STOPPED),
                 maximum_retry_count: None,
             }),
+            security_opt,
+            cap_drop,
             ..Default::default()
         }),
         ..Default::default()

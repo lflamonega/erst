@@ -23,6 +23,10 @@ pub enum Command {
         /// Hostname to access the app.
         #[arg(long)]
         host: Option<String>,
+        /// Install without hardening (no-new-privileges and reduced
+        /// capabilities). Needed by apps that escalate privileges on start.
+        #[arg(long)]
+        no_harden: bool,
     },
     /// List installed apps.
     #[command(visible_alias = "ls")]

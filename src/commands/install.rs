@@ -1,9 +1,17 @@
 use anyhow::{Context, Result};
 use bollard::Docker;
 use futures::StreamExt;
+use std::time::Duration;
 
 use crate::app;
 use crate::catalog;
+
+/// How long to wait before checking whether the container survived startup.
+const STARTUP_GRACE: Duration = Duration::from_secs(2);
+
+/// Restarts after this grace period mean the container is crash-looping
+/// instead of starting up slowly.
+const CRASH_RESTARTS: i64 = 2;
 
 /// Install an app from the catalog or from any container image reference.
 pub async fn install(
@@ -12,12 +20,14 @@ pub async fn install(
     ports: &[String],
     env: &[String],
     host: Option<String>,
+    no_harden: bool,
 ) -> Result<()> {
     let mut settings = match catalog::find(reference) {
         Some(entry) => entry.settings(ports, env)?,
         None => catalog::image_settings(reference, ports, env)?,
     };
     settings.host = host;
+    settings.harden = !no_harden;
 
     let container_name = app::container_name(&settings.name);
     if app::find(docker, &settings.name).await.is_ok() {
@@ -26,6 +36,16 @@ pub async fn install(
 
     println!("Installing {} ({})", settings.name, settings.image);
     pull(docker, &settings.image).await?;
+
+    // Record who the image intends to run as, so `list` can surface it.
+    settings.user = image_user(docker, &settings.image).await?;
+    if settings.runs_as_root() && settings.harden {
+        eprintln!(
+            "warning: {} runs as root inside the container. \
+             Only install apps you trust.",
+            settings.name
+        );
+    }
 
     let options = bollard::query_parameters::CreateContainerOptionsBuilder::new()
         .name(&container_name)
@@ -47,6 +67,8 @@ pub async fn install(
     for url in settings.urls() {
         println!("  Open {url}");
     }
+
+    warn_if_crashed(docker, &container_name, &settings).await?;
     Ok(())
 }
 
@@ -84,6 +106,75 @@ pub async fn pull_changed(docker: &Docker, reference: &str) -> Result<bool> {
 
     let after = docker.inspect_image(&image).await.ok().map(|info| info.id);
     Ok(before != after)
+}
+
+/// The user declared by the image; empty when the image runs as root.
+async fn image_user(docker: &Docker, image: &str) -> Result<String> {
+    let info = docker
+        .inspect_image(&with_default_tag(image))
+        .await
+        .with_context(|| format!("failed to inspect image {image}"))?;
+    Ok(info
+        .config
+        .and_then(|config| config.user)
+        .unwrap_or_default())
+}
+
+/// If the container died right after starting, show why instead of pretending
+/// the install succeeded.
+async fn warn_if_crashed(
+    docker: &Docker,
+    container: &str,
+    settings: &app::AppSettings,
+) -> Result<()> {
+    tokio::time::sleep(STARTUP_GRACE).await;
+
+    let inspect = docker.inspect_container(container, None).await?;
+    let state = inspect.state.unwrap_or_default();
+
+    // With `restart: unless-stopped` a crashed container never stays down, so a
+    // run of restarts is the signal that it is failing rather than starting.
+    let restarts = inspect.restart_count.unwrap_or(0);
+    let crashed = !state.running.unwrap_or(false) || restarts >= CRASH_RESTARTS;
+    if !crashed {
+        return Ok(());
+    }
+
+    let detail = state
+        .error
+        .or_else(|| state.status.map(|s| format!("{s:?}")))
+        .unwrap_or_else(|| "unknown status".to_string());
+    if restarts >= CRASH_RESTARTS {
+        eprintln!(
+            "\n{} is restarting repeatedly ({detail}). Last log lines:",
+            settings.name
+        );
+    } else {
+        eprintln!(
+            "\n{} exited immediately ({detail}). Last log lines:",
+            settings.name
+        );
+    }
+    let options = bollard::query_parameters::LogsOptionsBuilder::new()
+        .stdout(true)
+        .stderr(true)
+        .tail("20")
+        .build();
+    let mut stream = docker.logs(container, Some(options));
+    while let Some(chunk) = stream.next().await {
+        eprint!("{}", chunk?);
+    }
+
+    if settings.runs_as_root() {
+        eprintln!(
+            "\nIf this app needs to escalate privileges on start, retry with: \
+             erst install {} --no-harden",
+            settings.image
+        );
+    } else {
+        eprintln!("\nInspect the app with: erst logs {}", settings.name);
+    }
+    Ok(())
 }
 
 /// Add `:latest` to references that carry no tag or digest.
