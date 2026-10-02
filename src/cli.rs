@@ -57,6 +57,18 @@ pub enum Command {
         /// App name.
         app: String,
     },
+    /// Save an app's data to a tar.gz file.
+    Backup {
+        /// App name.
+        app: String,
+        /// Destination file. Defaults to <app>-<timestamp>.tar.gz.
+        destination: Option<String>,
+    },
+    /// Recreate an app from a backup file.
+    Restore {
+        /// Backup file created by `erst backup`.
+        backup: String,
+    },
     /// Update an app to the latest version of its image.
     Update { app: String },
     /// Remove an app.

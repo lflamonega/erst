@@ -2,6 +2,7 @@ mod app;
 mod catalog;
 mod cli;
 mod commands;
+mod data;
 mod runtime;
 
 use anyhow::Result;
@@ -33,8 +34,24 @@ async fn main() -> Result<()> {
         Command::Start { app } => commands::start(&docker, &app).await,
         Command::Stop { app } => commands::stop(&docker, &app).await,
         Command::Restart { app } => commands::restart(&docker, &app).await,
+        Command::Backup { app, destination } => {
+            let destination = destination.map_or_else(|| default_backup_name(&app), Into::into);
+            commands::backup(&docker, &app, &destination).await
+        }
+        Command::Restore { backup } => {
+            commands::restore(&docker, std::path::Path::new(&backup)).await
+        }
         Command::Update { app } => commands::update(&docker, &app).await,
         Command::Remove { app, remove_data } => commands::remove(&docker, &app, remove_data).await,
         Command::Catalog => unreachable!("catalog is handled before connecting"),
     }
+}
+
+/// Backup file name when the user does not give one: `<app>-<timestamp>.tar.gz`.
+fn default_backup_name(app: &str) -> std::path::PathBuf {
+    let seconds = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    format!("{app}-{seconds}.tar.gz").into()
 }

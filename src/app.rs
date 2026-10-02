@@ -27,6 +27,10 @@ pub struct AppSettings {
     /// Whether hardening (`no-new-privileges` + reduced capabilities) applies.
     #[serde(default = "default_true")]
     pub harden: bool,
+    /// Paths inside the container that hold the app's data, one named volume
+    /// per path. Empty for images that declare no data.
+    #[serde(default)]
+    pub data_paths: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -45,6 +49,7 @@ impl AppSettings {
             env: BTreeMap::new(),
             user: String::new(),
             harden: true,
+            data_paths: Vec::new(),
         }
     }
 

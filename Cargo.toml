@@ -9,10 +9,13 @@ repository = "https://github.com/lflamonega/erst"
 [dependencies]
 anyhow = "1"
 bollard = "0.21"
+bytes = "1"
 clap = { version = "4", features = ["derive"] }
+flate2 = "1"
 futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tar = "0.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 
 [profile.release]

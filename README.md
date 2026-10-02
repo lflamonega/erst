@@ -39,6 +39,8 @@ erst stop nginx              # stop / start / restart an app
 erst update nginx            # pull and roll out the latest image
 erst remove nginx            # keeps the data
 erst remove nginx --remove-data
+erst backup postgres         # save the data to <app>-<timestamp>.tar.gz
+erst restore postgres-1730.tar.gz   # bring the app back from a backup
 ```
 
 `install` accepts:
@@ -47,6 +49,22 @@ erst remove nginx --remove-data
   sensible defaults.
 - `--env KEY=VALUE` (repeatable) for configuration.
 - `--host` to record the hostname the app is served under.
+- `--no-harden` to skip hardening for apps that need to escalate privileges.
+
+## Data and backups
+
+When an app declares volumes, `erst` puts each of them in a named volume
+(`erst-data-<app>-<n>`), which is what makes data survive updates and lets
+`erst backup` and `erst remove --remove-data` work.
+
+`erst backup <app>` writes a `tar.gz` holding the app settings plus a tar per
+volume, and `erst restore <file>` recreates the app and repopulates those
+volumes. Backups are plain files: copy them wherever you like, and test a
+restore from time to time — an untested backup is a guess.
+
+Apps that declare no volumes (`nginx`, `alpine`, …) keep their state in the
+container filesystem and cannot be backed up; `erst backup` says so instead of
+writing an empty archive.
 
 ## Containers and root
 

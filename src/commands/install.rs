@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crate::app;
 use crate::catalog;
+use crate::data;
 
 /// How long to wait before checking whether the container survived startup.
 const STARTUP_GRACE: Duration = Duration::from_secs(2);
@@ -36,9 +37,18 @@ pub async fn install(
 
     println!("Installing {} ({})", settings.name, settings.image);
     pull(docker, &settings.image).await?;
+    data::ensure_volumes(docker, &settings).await?;
 
     // Record who the image intends to run as, so `list` can surface it.
     settings.user = image_user(docker, &settings.image).await?;
+    settings.data_paths = data::image_data_paths(docker, &settings.image).await?;
+    if !settings.data_paths.is_empty() {
+        println!(
+            "  Data: {} (kept in {} named volume/s)",
+            settings.data_paths.join(", "),
+            settings.data_paths.len()
+        );
+    }
     if settings.runs_as_root() && settings.harden {
         eprintln!(
             "warning: {} runs as root inside the container. \
@@ -51,7 +61,7 @@ pub async fn install(
         .name(&container_name)
         .build();
     docker
-        .create_container(Some(options), app::container_body(&settings))
+        .create_container(Some(options), data::with_volumes(&settings))
         .await
         .with_context(|| format!("failed to create container `{container_name}`"))?;
 
