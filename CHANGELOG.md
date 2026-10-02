@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `erst list` so it stays visible.
 - A post-install check that reports the last log lines when an app exits or
   crash-loops instead of reporting a successful install.
+- `erst list --check-updates` asks each registry whether a newer image exists,
+  comparing the registry manifest digest with the local one. Registries are
+  queried in parallel with anonymous tokens, and an unreachable or private
+  registry shows `?` instead of blocking the listing.
 
 ### Fixed
 
