@@ -34,6 +34,7 @@ erst install nginx           # install a catalog app
 erst install postgres        # databases included
 erst install myorg/myapp --port 8080:80   # any image
 erst list                    # what is installed, running first
+erst list --check-updates    # also ask each registry for a newer image
 erst logs nginx -f           # follow the logs
 erst stop nginx              # stop / start / restart an app
 erst update nginx            # pull and roll out the latest image

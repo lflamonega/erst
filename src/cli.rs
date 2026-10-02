@@ -30,7 +30,11 @@ pub enum Command {
     },
     /// List installed apps.
     #[command(visible_alias = "ls")]
-    List,
+    List {
+        /// Ask each registry whether a newer image exists.
+        #[arg(long)]
+        check_updates: bool,
+    },
     /// Show the logs of an app.
     Logs {
         /// App name.

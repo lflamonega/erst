@@ -4,6 +4,7 @@ mod cli;
 mod commands;
 mod data;
 mod runtime;
+mod updates;
 
 use anyhow::Result;
 use clap::Parser;
@@ -29,7 +30,7 @@ async fn main() -> Result<()> {
             host,
             no_harden,
         } => commands::install(&docker, &app, &ports, &env, host, no_harden).await,
-        Command::List => commands::list(&docker).await,
+        Command::List { check_updates } => commands::list(&docker, check_updates).await,
         Command::Logs { app, follow, tail } => commands::logs(&docker, &app, follow, tail).await,
         Command::Start { app } => commands::start(&docker, &app).await,
         Command::Stop { app } => commands::stop(&docker, &app).await,
