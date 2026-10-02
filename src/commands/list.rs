@@ -12,8 +12,8 @@ pub async fn list(docker: &Docker) -> Result<()> {
     }
 
     println!(
-        "{:<20} {:<30} {:<12} {:<12}",
-        "NAME", "IMAGE", "STATUS", "PORTS"
+        "{:<20} {:<30} {:<12} {:<12} {:<10}",
+        "NAME", "IMAGE", "STATUS", "PORTS", "USER"
     );
     for app in sort_by_running(apps) {
         let ports = app
@@ -24,11 +24,24 @@ pub async fn list(docker: &Docker) -> Result<()> {
             .collect::<Vec<_>>()
             .join(", ");
         println!(
-            "{:<20} {:<30} {:<12} {:<12}",
-            app.settings.name, app.settings.image, app.status, ports
+            "{:<20} {:<30} {:<12} {:<12} {:<10}",
+            app.settings.name,
+            app.settings.image,
+            app.status,
+            ports,
+            user_column(&app.settings)
         );
     }
     Ok(())
+}
+
+/// The container's user, flagged with `!` when it is root.
+fn user_column(settings: &app::AppSettings) -> String {
+    if settings.runs_as_root() {
+        "root!".to_string()
+    } else {
+        settings.user.trim().to_string()
+    }
 }
 
 fn sort_by_running(mut apps: Vec<app::InstalledApp>) -> Vec<app::InstalledApp> {

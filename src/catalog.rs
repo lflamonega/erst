@@ -102,11 +102,9 @@ impl Entry {
         env_vars.extend(parse_env(env)?);
 
         Ok(AppSettings {
-            name: self.name.to_string(),
-            image: self.image.to_string(),
-            host: None,
             ports: port_mappings,
             env: env_vars,
+            ..AppSettings::new(self.name, self.image)
         })
     }
 }
@@ -118,13 +116,10 @@ pub fn image_settings(reference: &str, ports: &[String], env: &[String]) -> Resu
     // Port-less installs are allowed: the container simply publishes nothing.
     let port_mappings = parse_ports(ports)?;
 
-    Ok(AppSettings {
-        name,
-        image: reference.to_string(),
-        host: None,
-        ports: port_mappings,
-        env: parse_env(env)?,
-    })
+    let mut settings = AppSettings::new(name, reference);
+    settings.ports = port_mappings;
+    settings.env = parse_env(env)?;
+    Ok(settings)
 }
 
 fn parse_ports(values: &[String]) -> Result<Vec<PortMapping>> {

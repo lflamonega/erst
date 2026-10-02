@@ -48,6 +48,29 @@ erst remove nginx --remove-data
 - `--env KEY=VALUE` (repeatable) for configuration.
 - `--host` to record the hostname the app is served under.
 
+## Containers and root
+
+Most public images (nginx, postgres, redis, …) start as root **inside the
+container**. That is not root on the machine — the container keeps its own
+namespaces, reduced capabilities and seccomp filters — but a container from an
+untrusted image is still more dangerous than it looks if it ever escapes.
+
+So `erst`:
+
+- **warns on install** when an image runs as root, so you see it instead of
+  finding out later;
+- **shows the user in `erst list`** (`root!` marks a container running as root);
+- **hardens containers it creates** by applying `no-new-privileges` and dropping
+  the `AUDIT_WRITE`, `MKNOD` and `SETFCAP` capabilities, which ordinary apps do
+  not need and which widen the damage a container escape could do;
+- **checks that the app actually stayed up** after starting, printing the last
+  log lines if it exited or crash-loops.
+
+`erst` never changes the user of an image: doing so breaks most popular apps,
+which bind privileged ports or drop privileges themselves. If an app fails to
+start because of the hardening, install it with `erst install <app> --no-harden`
+and it runs with the default capabilities.
+
 ## Development
 
 ```sh
