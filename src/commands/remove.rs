@@ -5,18 +5,16 @@ use crate::app;
 use crate::data;
 
 /// Remove an app, optionally dropping its data.
-pub async fn remove(docker: &Docker, name: &str, remove_data: bool) -> Result<()> {
+pub async fn remove(docker: &Docker, name: &str, remove_data: bool) -> Result<String> {
     let app = app::find(docker, name).await?;
     app::remove(docker, &app, remove_data).await?;
 
+    let mut message = format!("Removed {}", app.settings.name);
     if remove_data {
         data::remove_volumes(docker, &app.settings).await?;
-        println!("Removed {} and its data", app.settings.name);
-    } else {
-        println!("Removed {}", app.settings.name);
-        if !app.settings.data_paths.is_empty() {
-            println!("  Data was kept. Pass --remove-data to delete it too.");
-        }
+        message.push_str(" and its data");
+    } else if !app.settings.data_paths.is_empty() {
+        message.push_str("\n  Data was kept. Pass --remove-data to delete it too.");
     }
-    Ok(())
+    Ok(message)
 }

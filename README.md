@@ -29,6 +29,7 @@ cargo install --path .
 ## Usage
 
 ```sh
+erst dashboard               # interactive TUI (also the default with no arguments)
 erst catalog                 # list the apps in the catalog
 erst install nginx           # install a catalog app
 erst install postgres        # databases included
@@ -66,6 +67,25 @@ restore from time to time — an untested backup is a guess.
 Apps that declare no volumes (`nginx`, `alpine`, …) keep their state in the
 container filesystem and cannot be backed up; `erst backup` says so instead of
 writing an empty archive.
+
+## Dashboard
+
+`erst dashboard` (or `erst` with no arguments) opens a terminal UI:
+
+| key   | action                                             |
+|-------|----------------------------------------------------|
+| `j/k` | move between apps                                   |
+| `l`   | logs of the selected app                            |
+| `s`   | start                                               |
+| `x`   | stop                                                |
+| `u`   | update to the latest image                          |
+| `b`   | back up the data                                    |
+| `d`   | back up the data, then remove the app               |
+| `r`   | install from the catalog                            |
+| `R`   | show only apps running as root                      |
+| `q`   | quit                                               |
+
+The list refreshes on its own, and the header shows how many apps run as root.
 
 ## Containers and root
 

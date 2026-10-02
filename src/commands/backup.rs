@@ -11,6 +11,9 @@ use std::path::Path;
 use crate::app::{self, AppSettings};
 use crate::data;
 
+use super::Reporter;
+use super::install::pull;
+
 /// Layout of a backup archive: the app settings, then one tar per data volume.
 const MANIFEST: &str = "erst.json";
 
@@ -27,7 +30,12 @@ fn encoder(file: std::fs::File) -> flate2::write::GzEncoder<std::fs::File> {
 }
 
 /// Write a tar.gz of an app's data volumes to `destination`.
-pub async fn backup(docker: &Docker, name: &str, destination: &Path) -> Result<()> {
+pub async fn backup(
+    docker: &Docker,
+    name: &str,
+    destination: &Path,
+    report: Reporter<'_>,
+) -> Result<String> {
     let app = app::find(docker, name).await?;
     if app.settings.data_paths.is_empty() {
         bail!("`{name}` declares no data to back up");
@@ -44,7 +52,7 @@ pub async fn backup(docker: &Docker, name: &str, destination: &Path) -> Result<(
     )?;
 
     for (index, path) in app.settings.data_paths.iter().enumerate() {
-        println!("  Backing up {path}");
+        report(&format!("Backing up {path}"));
         let reader = volume_io_container(docker, &app.settings).await?;
         let options = DownloadFromContainerOptionsBuilder::new()
             .path(path)
@@ -62,20 +70,18 @@ pub async fn backup(docker: &Docker, name: &str, destination: &Path) -> Result<(
         .finish()
         .context("failed to finish the backup file")?;
 
-    println!("Backed up {} to {}", name, destination.display());
-    Ok(())
+    Ok(format!("Backed up {} to {}", name, destination.display()))
 }
 
 /// Recreate an app from a backup archive.
-pub async fn restore(docker: &Docker, source: &Path) -> Result<()> {
+pub async fn restore(docker: &Docker, source: &Path) -> Result<String> {
     let Backup { settings, volumes } = read(source)?;
-
     if app::find(docker, &settings.name).await.is_ok() {
         bail!("`{}` is already installed; remove it first", settings.name);
     }
 
-    println!("Restoring {} ({})", settings.name, settings.image);
-    crate::commands::install::pull(docker, &settings.image).await?;
+    // Pull progress is already covered by what the user sees before this call.
+    pull(docker, &settings.image, &mut |_| {}).await?;
     data::ensure_volumes(docker, &settings).await?;
 
     for (index, path) in settings.data_paths.iter().enumerate() {
@@ -96,8 +102,6 @@ pub async fn restore(docker: &Docker, source: &Path) -> Result<()> {
             .await
             .with_context(|| format!("failed to upload data to {path}"))?;
         drop_container(docker, &reader).await;
-
-        println!("  Restored {path}");
     }
 
     let container_name = app::container_name(&settings.name);
@@ -117,11 +121,11 @@ pub async fn restore(docker: &Docker, source: &Path) -> Result<()> {
         .await
         .with_context(|| format!("failed to start container `{container_name}`"))?;
 
-    println!("Restored {} (container {})", settings.name, container_name);
+    let mut message = format!("Restored {} ({container_name})", settings.name);
     for url in settings.urls() {
-        println!("  Open {url}");
+        message.push_str(&format!("\n  Open {url}"));
     }
-    Ok(())
+    Ok(message)
 }
 
 /// A short-lived container used only to read from or write to a data volume.
@@ -187,7 +191,8 @@ fn read(source: &Path) -> Result<Backup> {
             manifest = Some(bytes);
         } else if let Some(index) = path
             .strip_prefix("volumes/")
-            .and_then(|n| n.strip_suffix(".tar").and_then(|n| n.parse::<usize>().ok()))
+            .and_then(|name| name.strip_suffix(".tar"))
+            .and_then(|index| index.parse::<usize>().ok())
         {
             if volumes.len() <= index {
                 volumes.resize_with(index + 1, Vec::new);

@@ -4,16 +4,16 @@ use bollard::Docker;
 use crate::app;
 use crate::data;
 
+use super::Reporter;
 use super::install::pull_changed;
 
 /// Update an app to the latest version of its image.
-pub async fn update(docker: &Docker, name: &str) -> Result<()> {
+pub async fn update(docker: &Docker, name: &str, report: Reporter<'_>) -> Result<String> {
     let app = app::find(docker, name).await?;
 
-    println!("Pulling {} ({})", app.settings.name, app.settings.image);
-    if !pull_changed(docker, &app.settings.image).await? {
-        println!("{} is already up to date", app.settings.name);
-        return Ok(());
+    report(&format!("Pulling {}", app.settings.image));
+    if !pull_changed(docker, &app.settings.image, report).await? {
+        return Ok(format!("{} is already up to date", app.settings.name));
     }
 
     // Recreate the container from its stored settings, keeping the data.
@@ -38,6 +38,5 @@ pub async fn update(docker: &Docker, name: &str) -> Result<()> {
         .await
         .context("failed to start the new container")?;
 
-    println!("Updated {}", app.settings.name);
-    Ok(())
+    Ok(format!("Updated {}", app.settings.name))
 }
