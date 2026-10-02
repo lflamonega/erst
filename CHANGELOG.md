@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-02
+
 ### Added
 
 - `erst dashboard` (also what plain `erst` runs): a terminal dashboard with the
@@ -14,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   update, backup, install and remove actions. The list refreshes on its own.
 - Commands now report what they did instead of printing it, so the dashboard can
   show it in its status line without a command writing over the screen.
-
 - `erst backup <app> [file]` writes a `tar.gz` with the app settings and a tar
   per data volume; the file name defaults to `<app>-<timestamp>.tar.gz`.
 - `erst restore <file>` recreates an app from a backup and repopulates its
@@ -57,5 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apps restart automatically (`unless-stopped`) and their settings are stored as
   a label on the container, so no external state file is needed.
 
-[Unreleased]: https://github.com/lflamonega/erst/compare/v0.1.0...develop
+[Unreleased]: https://github.com/lflamonega/erst/compare/v0.2.0...develop
+[0.2.0]: https://github.com/lflamonega/erst/releases/tag/v0.2.0
 [0.1.0]: https://github.com/lflamonega/erst/releases/tag/v0.1.0
