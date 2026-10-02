@@ -1,3 +1,4 @@
+mod backup;
 mod catalog;
 mod install;
 mod lifecycle;
@@ -6,6 +7,7 @@ mod logs;
 mod remove;
 mod update;
 
+pub use backup::{backup, restore};
 pub use catalog::catalog;
 pub use install::install;
 pub use lifecycle::{restart, start, stop};

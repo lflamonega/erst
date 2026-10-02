@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `erst backup <app> [file]` writes a `tar.gz` with the app settings and a tar
+  per data volume; the file name defaults to `<app>-<timestamp>.tar.gz`.
+- `erst restore <file>` recreates an app from a backup and repopulates its
+  volumes.
+- Named volumes for the paths an image declares as volumes (`erst-data-<app>-<n>`),
+  so data survives updates and can be backed up and removed.
+- Hardening by default: `no-new-privileges` plus dropping `AUDIT_WRITE`, `MKNOD`
+  and `SETFCAP`, with `erst install --no-harden` as the escape hatch.
+- A warning when an installed image runs as root, and a `root!` marker in
+  `erst list` so it stays visible.
+- A post-install check that reports the last log lines when an app exits or
+  crash-loops instead of reporting a successful install.
+
+### Fixed
+
+- Windows builds: the runtime probe uses the Docker Desktop named pipe on
+  Windows, since bollard's Podman and Unix socket constructors do not exist
+  there.
+
 ## [0.1.0] - 2026-10-02
 
 ### Added

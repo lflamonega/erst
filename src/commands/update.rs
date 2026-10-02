@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use bollard::Docker;
 
 use crate::app;
+use crate::data;
 
 use super::install::pull_changed;
 
@@ -29,7 +30,7 @@ pub async fn update(docker: &Docker, name: &str) -> Result<()> {
         .name(&container_name)
         .build();
     docker
-        .create_container(Some(create_options), app::container_body(&app.settings))
+        .create_container(Some(create_options), data::with_volumes(&app.settings))
         .await
         .context("failed to recreate the container")?;
     docker
