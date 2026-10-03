@@ -28,8 +28,8 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<String> {
     };
 
     let mut out = format!(
-        "{:<20} {:<30} {:<14} {:<14} {:<10} {:<10}\n",
-        "NAME", "IMAGE", "STATUS", "PORTS", "USER", "UPDATE"
+        "{:<20} {:<30} {:<14} {:<14} {:<10} {:<14} {:<10}\n",
+        "NAME", "IMAGE", "STATUS", "PORTS", "USER", "LIMITS", "UPDATE"
     );
     for (index, app) in apps.iter().enumerate() {
         let update = match checks.get(index) {
@@ -37,12 +37,13 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<String> {
             None => "-",
         };
         out.push_str(&format!(
-            "{:<20} {:<30} {:<14} {:<14} {:<10} {:<10}\n",
+            "{:<20} {:<30} {:<14} {:<14} {:<10} {:<14} {:<10}\n",
             app.settings.name,
             app.settings.image,
             app.status,
             ports(app),
             user_column(app),
+            app.settings.limits(),
             update
         ));
     }

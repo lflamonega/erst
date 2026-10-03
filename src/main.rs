@@ -4,6 +4,7 @@ mod cli;
 mod commands;
 mod data;
 mod hub;
+mod limits;
 mod runtime;
 mod tui;
 mod updates;
@@ -37,8 +38,22 @@ async fn main() -> Result<()> {
             env,
             host,
             no_harden,
+            memory,
+            cpu,
         } => {
-            print(commands::install(&docker, &app, &ports, &env, host, no_harden, &mut echo).await)
+            let options = commands::InstallOptions {
+                reference: app,
+                ports,
+                env,
+                host,
+                harden: !no_harden,
+                memory,
+                cpu,
+            };
+            print(commands::install(&docker, options, &mut echo).await)
+        }
+        Command::Limit { app, memory, cpu } => {
+            print(commands::limit(&docker, &app, memory.as_deref(), cpu.as_deref()).await)
         }
         Command::List { check_updates } => print(commands::list(&docker, check_updates).await),
         Command::Logs { app, follow, tail } => commands::logs(&docker, &app, follow, tail).await,

@@ -35,6 +35,8 @@ erst search redis            # search Docker Hub for any image
 erst install nginx           # install a catalog app
 erst install postgres        # databases included
 erst install myorg/myapp --port 8080:80   # any image
+erst install nginx --memory 256m --cpu 0.5  # cap what it may use
+erst limit nginx --memory 512m             # change (or lift) those caps
 erst list                    # what is installed, running first
 erst list --check-updates    # also ask each registry for a newer image
 erst logs nginx -f           # follow the logs
@@ -52,6 +54,7 @@ erst restore postgres-1730.tar.gz   # bring the app back from a backup
   sensible defaults.
 - `--env KEY=VALUE` (repeatable) for configuration.
 - `--host` to record the hostname the app is served under.
+- `--memory` and `--cpu` to cap resources (see below).
 - `--no-harden` to skip hardening for apps that need to escalate privileges.
 
 ## Finding an image
@@ -65,6 +68,28 @@ while an arbitrary image installs bare.
 An image installed bare publishes no ports, so nothing is reachable from your
 machine. That is normal for a service another app talks to; for anything you
 want to open yourself, install it with `--port HOST:CONTAINER`.
+
+## Resource limits
+
+Nothing is capped by default — an uncapped app can use every core and all the
+memory your machine has, which is usually fine and occasionally disastrous. Cap
+the risky ones:
+
+```sh
+erst install postgres --memory 1g --cpu 2
+erst limit nginx --memory 256m          # change a running app
+erst limit nginx --memory unlimited     # take the cap away again
+```
+
+`--memory` takes `512m`, `1g` or a bare `512`, and a bare number means
+**megabytes**: `--memory 512` is 512 MB, not 512 bytes. `--cpu` takes a number
+of CPUs, so `0.5` is half a core. `erst list` and the dashboard show both in a
+`LIMITS` column (`-` when nothing is capped).
+
+Limits are part of a container's settings, and a container's settings can only
+be set when it is created, so `erst limit` rebuilds the app. Data in the
+declared volumes survives that; for an app with no volumes `erst` says up front
+that anything written inside the container will be replaced.
 
 ## Data and backups
 

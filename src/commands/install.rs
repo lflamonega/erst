@@ -7,6 +7,7 @@ use super::Reporter;
 use crate::app::{self, AppSettings};
 use crate::catalog::{self, Entry};
 use crate::data;
+use crate::limits;
 
 /// How long to wait before checking whether the container survived startup.
 const STARTUP_GRACE: Duration = Duration::from_secs(2);
@@ -15,31 +16,57 @@ const STARTUP_GRACE: Duration = Duration::from_secs(2);
 /// instead of starting up slowly.
 const CRASH_RESTARTS: i64 = 2;
 
+/// What the user asked for when installing an app.
+///
+/// Bundled rather than passed as arguments: there are enough knobs that a flat
+/// list would stop being readable at the call site.
+#[derive(Debug, Default)]
+pub struct InstallOptions {
+    /// Catalog app name or container image reference.
+    pub reference: String,
+    /// Overrides for the ports and environment the image declares.
+    pub ports: Vec<String>,
+    pub env: Vec<String>,
+    /// Hostname to access the app under.
+    pub host: Option<String>,
+    /// Whether hardening applies.
+    pub harden: bool,
+    /// Memory cap as typed: `512m`, `1g`, a bare `512`, or `unlimited`.
+    pub memory: Option<String>,
+    /// CPU allowance as typed: `1`, `0.5`, or `unlimited`.
+    pub cpu: Option<String>,
+}
+
 /// Install an app from the catalog or from any container image reference.
 pub async fn install(
     docker: &Docker,
-    reference: &str,
-    ports: &[String],
-    env: &[String],
-    host: Option<String>,
-    no_harden: bool,
+    options: InstallOptions,
     report: Reporter<'_>,
 ) -> Result<String> {
-    let mut settings = match catalog::find(reference) {
-        Some(entry) => entry.settings(ports, env)?,
-        None => catalog::image_settings(reference, ports, env)?,
+    let mut settings = match catalog::find(&options.reference) {
+        Some(entry) => entry.settings(&options.ports, &options.env)?,
+        None => catalog::image_settings(&options.reference, &options.ports, &options.env)?,
     };
-    settings.host = host;
-    settings.harden = !no_harden;
+    settings.host = options.host;
+    settings.harden = options.harden;
+    if let Some(value) = &options.memory {
+        settings.memory = limits::memory_value(value)?;
+    }
+    if let Some(value) = &options.cpu {
+        settings.cpu_nanos = limits::cpu_value(value)?;
+    }
 
     install_settings(docker, settings, report).await
 }
 
 /// Install a catalog entry with its own defaults, used by the dashboard.
 pub async fn install_entry(docker: &Docker, entry: &Entry, report: Reporter<'_>) -> Result<String> {
-    let ports: Vec<String> = Vec::new();
-    let env: Vec<String> = Vec::new();
-    install_settings(docker, entry.settings(&ports, &env)?, report).await
+    let options = InstallOptions {
+        reference: entry.name.to_string(),
+        harden: true,
+        ..InstallOptions::default()
+    };
+    install(docker, options, report).await
 }
 
 async fn install_settings(
@@ -83,6 +110,10 @@ async fn install_settings(
         .with_context(|| format!("failed to start container `{container_name}`"))?;
 
     let mut message = format!("Installed {} ({container_name})", settings.name);
+    let limits = settings.limits();
+    if limits != "-" {
+        message.push_str(&format!(", limited to {limits}"));
+    }
     for url in settings.urls() {
         message.push_str(&format!("\n  Open {url}"));
     }
