@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `erst search <words>` queries Docker Hub and lists matching images with
+  their stars, pull counts and description; Docker's own images are marked `*`
+  and catalog matches are pointed out. Works without a registry login.
+- `/` on the dashboard opens the same search: type, `enter` to search, arrows
+  to pick, `enter` to install. Images that are in the catalog install with
+  their usual ports and settings.
+
+### Fixed
+
+- The dashboard's `r` (catalog) and other top-level keys did nothing while no
+  app was installed, which is exactly when the empty state tells you to press
+  them.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

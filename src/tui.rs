@@ -13,12 +13,16 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 use crate::app::{self, InstalledApp};
 use crate::catalog;
 use crate::commands;
+use crate::hub;
 
 /// How often the app list is refreshed on its own.
 const REFRESH: Duration = Duration::from_secs(5);
 
 /// How many log lines the log view keeps.
 const LOG_LINES: usize = 200;
+
+/// How many search results the dashboard asks Docker Hub for.
+const SEARCH_RESULTS: usize = 15;
 
 /// Open the dashboard.
 pub async fn run(docker: Docker) -> Result<()> {
@@ -31,6 +35,7 @@ pub async fn run(docker: Docker) -> Result<()> {
         selected: 0,
         catalog_selected: 0,
         logs: Logs::default(),
+        search: Search::default(),
         notice: None,
         busy: None,
         root_only: false,
@@ -47,6 +52,7 @@ pub async fn run(docker: Docker) -> Result<()> {
 enum Screen {
     Apps,
     Catalog,
+    Search,
     Logs,
     Help,
 }
@@ -59,6 +65,19 @@ struct Logs {
     scroll: u16,
 }
 
+/// What the search screen is showing.
+#[derive(Default)]
+struct Search {
+    query: String,
+    results: Vec<hub::Image>,
+    /// How many images matched in total, far more than are listed.
+    total: u64,
+    /// The query the results belong to: while they match, `enter` installs
+    /// instead of searching again.
+    searched_for: String,
+    selected: usize,
+}
+
 /// Everything the UI needs to draw and act.
 struct State {
     docker: Docker,
@@ -67,6 +86,7 @@ struct State {
     selected: usize,
     catalog_selected: usize,
     logs: Logs,
+    search: Search,
     notice: Option<String>,
     busy: Option<String>,
     root_only: bool,
@@ -149,6 +169,7 @@ async fn handle_key(
         Screen::Catalog => {
             match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => state.screen = Screen::Apps,
+                KeyCode::Char('/') => open_search(state),
                 KeyCode::Down | KeyCode::Char('j') => {
                     state.catalog_selected = (state.catalog_selected + 1)
                         .min(catalog::entries().len().saturating_sub(1));
@@ -161,23 +182,64 @@ async fn handle_key(
             }
             return Ok(false);
         }
+        Screen::Search => {
+            match key.code {
+                // Esc always leaves; `q` is just a letter in a search box.
+                KeyCode::Esc => state.screen = Screen::Apps,
+                KeyCode::Enter => search_action(terminal, state).await?,
+                KeyCode::Backspace => {
+                    state.search.query.pop();
+                    state.search.searched_for.clear();
+                    state.notice = None;
+                }
+                KeyCode::Down if !state.search.results.is_empty() => {
+                    state.search.selected =
+                        (state.search.selected + 1).min(state.search.results.len() - 1);
+                }
+                KeyCode::Up => state.search.selected = state.search.selected.saturating_sub(1),
+                KeyCode::Char(character) => {
+                    state.search.query.push(character);
+                    // Editing the query invalidates the results on screen.
+                    state.search.searched_for.clear();
+                }
+                _ => {}
+            }
+            return Ok(false);
+        }
         Screen::Apps => {}
     }
 
-    let Some(app) = state.selected_app() else {
-        return Ok(matches!(key.code, KeyCode::Char('q') | KeyCode::Esc));
-    };
-    let name = app.settings.name.clone();
-
+    // Keys that work no matter what is on the screen, including when no app
+    // is installed yet: the empty state tells the user to press `r`.
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => return Ok(true),
-        KeyCode::Char('?') => state.screen = Screen::Help,
-        KeyCode::Char('r') => state.screen = Screen::Catalog,
+        KeyCode::Char('?') => {
+            state.screen = Screen::Help;
+            return Ok(false);
+        }
+        KeyCode::Char('r') => {
+            state.screen = Screen::Catalog;
+            return Ok(false);
+        }
+        KeyCode::Char('/') => {
+            open_search(state);
+            return Ok(false);
+        }
         KeyCode::Char('R') => {
             state.root_only = !state.root_only;
             state.selected = 0;
             state.refresh().await;
+            return Ok(false);
         }
+        _ => {}
+    }
+
+    let Some(app) = state.selected_app() else {
+        return Ok(false);
+    };
+    let name = app.settings.name.clone();
+
+    match key.code {
         KeyCode::Down | KeyCode::Char('j') => move_selection(state, 1),
         KeyCode::Up | KeyCode::Char('k') => move_selection(state, -1),
         KeyCode::Enter | KeyCode::Char('l') => load_logs(terminal, state, &name).await?,
@@ -255,6 +317,14 @@ async fn handle_key(
     Ok(false)
 }
 
+/// Start a fresh search: a stale query left over from last time would make the
+/// first `enter` install something the user did not ask for.
+fn open_search(state: &mut State) {
+    state.search = Search::default();
+    state.notice = None;
+    state.screen = Screen::Search;
+}
+
 fn move_selection(state: &mut State, delta: isize) {
     if state.apps.is_empty() {
         return;
@@ -305,6 +375,78 @@ async fn install_selected(terminal: &mut DefaultTerminal, state: &mut State) -> 
     Ok(())
 }
 
+/// `enter` on the search screen: search, or install what is already listed.
+async fn search_action(terminal: &mut DefaultTerminal, state: &mut State) -> Result<()> {
+    let query = state.search.query.trim().to_string();
+    if query.is_empty() {
+        state.screen = Screen::Apps;
+        return Ok(());
+    }
+
+    if state.search.searched_for != query {
+        state.busy = Some(format!("Searching Docker Hub for {query}"));
+        draw_now(terminal, state)?;
+
+        let outcome = hub::search(&query, SEARCH_RESULTS).await;
+        state.busy = None;
+        match outcome {
+            Ok(results) => {
+                state.search.searched_for = query;
+                state.search.selected = 0;
+                state.search.total = results.total;
+                state.search.results = results.images;
+            }
+            Err(error) => state.notice = Some(format!("{error}")),
+        }
+        return Ok(());
+    }
+
+    // The results on screen already match the query, so this installs.
+    let Some(reference) = state
+        .search
+        .results
+        .get(state.search.selected)
+        .map(|image| image.name.clone())
+    else {
+        return Ok(());
+    };
+    install_reference(terminal, state, &reference).await
+}
+
+/// Install an image reference, taking the catalog's defaults when it is in it:
+/// installed bare, an image publishes no ports and is unreachable.
+async fn install_reference(
+    terminal: &mut DefaultTerminal,
+    state: &mut State,
+    reference: &str,
+) -> Result<()> {
+    state.screen = Screen::Apps;
+    let docker = state.docker.clone();
+    let label = format!("Installing {reference}");
+
+    match catalog::find_by_reference(reference) {
+        Some(entry) => {
+            act(
+                terminal,
+                state,
+                label,
+                commands::install_entry(&docker, entry, &mut |_| {}),
+            )
+            .await?;
+        }
+        None => {
+            act(
+                terminal,
+                state,
+                label,
+                commands::install(&docker, reference, &[], &[], None, false, &mut |_| {}),
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
 /// Read the tail of an app's logs into the log view.
 async fn load_logs(terminal: &mut DefaultTerminal, state: &mut State, name: &str) -> Result<()> {
     state.busy = Some(format!("Loading logs of {name}"));
@@ -347,6 +489,7 @@ fn draw(frame: &mut Frame, state: &State) {
     match state.screen {
         Screen::Apps => apps(frame, areas[1], state),
         Screen::Catalog => catalog(frame, areas[1], state),
+        Screen::Search => search(frame, areas[1], state),
         Screen::Logs => logs(frame, areas[1], state),
         Screen::Help => help(frame, areas[1]),
     }
@@ -469,6 +612,74 @@ fn catalog(frame: &mut Frame, area: Rect, state: &State) {
     frame.render_stateful_widget(list, area, &mut list_state);
 }
 
+fn search(frame: &mut Frame, area: Rect, state: &State) {
+    let areas = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(area);
+
+    frame.render_widget(
+        Paragraph::new(format!("{}▌", state.search.query)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("search Docker Hub  (enter search · esc back)"),
+        ),
+        areas[0],
+    );
+
+    if state.search.results.is_empty() {
+        let message = match (
+            state.search.query.is_empty(),
+            state.search.searched_for.is_empty(),
+        ) {
+            (true, _) => {
+                "Type what you are looking for and press enter.\n\n\
+                 An image marked * is published by Docker itself, which is the\n\
+                 safe choice when you cannot judge an image by its author."
+            }
+            (false, true) => "Press enter to search.",
+            (false, false) => "No images found.",
+        };
+        frame.render_widget(
+            Paragraph::new(message)
+                .wrap(Wrap { trim: true })
+                .block(Block::default().borders(Borders::ALL)),
+            areas[1],
+        );
+        return;
+    }
+
+    let items: Vec<ListItem> = state
+        .search
+        .results
+        .iter()
+        .map(|image| {
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!(
+                        "{}{:<34}",
+                        if image.official { "*" } else { " " },
+                        hub::truncate(&image.name, 34)
+                    ),
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(format!(
+                    "{:>6} {:>7}  ",
+                    hub::humans(image.stars),
+                    hub::humans(image.pulls)
+                )),
+                Span::raw(hub::truncate(&image.description, 40)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title(format!(
+        "results  ({} of about {} · enter install · esc back)",
+        state.search.results.len(),
+        hub::humans(state.search.total)
+    )));
+    let mut list_state = ListState::default();
+    list_state.select(Some(state.search.selected));
+    frame.render_stateful_widget(list, areas[1], &mut list_state);
+}
+
 fn logs(frame: &mut Frame, area: Rect, state: &State) {
     if state.logs.lines.is_empty() {
         frame.render_widget(
@@ -511,6 +722,7 @@ fn help(frame: &mut Frame, area: Rect) {
         "b        back up the data",
         "d        back up the data, then remove the app",
         "r        install from the catalog",
+        "/        search Docker Hub for any image",
         "R        show only apps running as root",
         "q / esc  quit",
     ]
@@ -532,9 +744,10 @@ fn footer(frame: &mut Frame, area: Rect, state: &State) {
         (None, Some(notice)) => notice.clone(),
         (None, None) => match state.screen {
             Screen::Apps => {
-                "j/k move · l logs · s start · x stop · u update · b backup · r install · q quit"
+                "j/k move · l logs · s start · x stop · u update · b backup · r catalog · / search · q quit"
             }
-            Screen::Catalog => "j/k move · enter install · esc back",
+            Screen::Catalog => "j/k move · enter install · / search · esc back",
+            Screen::Search => "type and press enter · ↑/↓ pick · enter install · esc back",
             Screen::Logs => "j/k scroll · esc back",
             Screen::Help => "any key to go back",
         }

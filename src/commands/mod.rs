@@ -5,6 +5,7 @@ mod lifecycle;
 mod list;
 mod logs;
 mod remove;
+mod search;
 mod update;
 
 pub use backup::{backup, restore};
@@ -14,6 +15,7 @@ pub use lifecycle::{restart, start, stop};
 pub use list::list;
 pub use logs::{logs, tail_logs};
 pub use remove::remove;
+pub use search::search;
 pub use update::update;
 
 /// Where a command writes its progress and warnings.
