@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/` on the dashboard opens the same search: type, `enter` to search, arrows
   to pick, `enter` to install. Images that are in the catalog install with
   their usual ports and settings.
+- Resource limits: `erst install --memory 512m --cpu 1.5` caps an app from the
+  start, and `erst limit <app> --memory … --cpu …` changes or lifts those caps
+  later. A bare `--memory 512` means megabytes rather than the 512 bytes the
+  container convention would read, and `unlimited` clears a cap. `erst list`
+  and the dashboard show them in a new `LIMITS` column.
+
+### Changed
+
+- `erst update` now reports when an app declares no volumes, so it is visible
+  that data written inside the container does not survive the rebuild.
 
 ### Fixed
 

@@ -439,7 +439,15 @@ async fn install_reference(
                 terminal,
                 state,
                 label,
-                commands::install(&docker, reference, &[], &[], None, false, &mut |_| {}),
+                commands::install(
+                    &docker,
+                    commands::InstallOptions {
+                        reference: reference.to_string(),
+                        harden: true,
+                        ..commands::InstallOptions::default()
+                    },
+                    &mut |_| {},
+                ),
             )
             .await?;
         }
@@ -565,6 +573,13 @@ fn apps(frame: &mut Frame, area: Rect, state: &State) {
                 Span::raw(app.settings.user.trim().to_string())
             };
 
+            let limits = app.settings.limits();
+            let limits = if limits == "-" {
+                String::new()
+            } else {
+                format!("  {limits}")
+            };
+
             ListItem::new(Line::from(vec![
                 Span::styled(
                     format!(" {:<18}", app.settings.name),
@@ -573,6 +588,7 @@ fn apps(frame: &mut Frame, area: Rect, state: &State) {
                 Span::raw(format!("{status:<9} ")),
                 user,
                 Span::raw(format!("  {ports}")),
+                Span::styled(limits, Style::default().fg(Color::DarkGray)),
             ]))
         })
         .collect();

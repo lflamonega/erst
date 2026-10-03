@@ -28,6 +28,23 @@ pub enum Command {
         /// capabilities). Needed by apps that escalate privileges on start.
         #[arg(long)]
         no_harden: bool,
+        /// Cap memory: 512m, 1g, a bare 512 (megabytes), or `unlimited`.
+        #[arg(long, value_name = "SIZE")]
+        memory: Option<String>,
+        /// Cap CPUs: 1, 0.5, 2.5, or `unlimited`.
+        #[arg(long, value_name = "CPUS")]
+        cpu: Option<String>,
+    },
+    /// Change an app's resource limits.
+    Limit {
+        /// App name.
+        app: String,
+        /// Cap memory: 512m, 1g, a bare 512 (megabytes), or `unlimited`.
+        #[arg(long, value_name = "SIZE")]
+        memory: Option<String>,
+        /// Cap CPUs: 1, 0.5, 2.5, or `unlimited`.
+        #[arg(long, value_name = "CPUS")]
+        cpu: Option<String>,
     },
     /// Open the dashboard.
     Dashboard,

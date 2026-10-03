@@ -31,6 +31,12 @@ pub struct AppSettings {
     /// per path. Empty for images that declare no data.
     #[serde(default)]
     pub data_paths: Vec<String>,
+    /// Memory cap in bytes; `None` lets the app use as much as it wants.
+    #[serde(default)]
+    pub memory: Option<i64>,
+    /// CPU allowance in nano-CPUs (`1_000_000_000` is one whole CPU).
+    #[serde(default)]
+    pub cpu_nanos: Option<i64>,
 }
 
 fn default_true() -> bool {
@@ -50,6 +56,8 @@ impl AppSettings {
             user: String::new(),
             harden: true,
             data_paths: Vec::new(),
+            memory: None,
+            cpu_nanos: None,
         }
     }
 
@@ -65,6 +73,11 @@ impl AppSettings {
     pub fn runs_as_root(&self) -> bool {
         let user = self.user.trim();
         user.is_empty() || user == "root" || user == "0" || user == "0:0"
+    }
+
+    /// How the resource limits read, e.g. `512m · 1.5cpu`.
+    pub fn limits(&self) -> String {
+        crate::limits::show(self.memory, self.cpu_nanos)
     }
 }
 
@@ -116,13 +129,6 @@ pub struct InstalledApp {
     pub container_id: String,
     pub status: String,
     pub running: bool,
-}
-
-impl InstalledApp {
-    /// Container name for this app, derived from its name.
-    pub fn container_name(&self) -> String {
-        container_name(&self.settings.name)
-    }
 }
 
 pub fn container_name(name: &str) -> String {
@@ -245,8 +251,53 @@ pub fn container_body(settings: &AppSettings) -> ContainerCreateBody {
             }),
             security_opt,
             cap_drop,
+            memory: settings.memory,
+            nano_cpus: settings.cpu_nanos,
             ..Default::default()
         }),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Labels outlive the binary that wrote them, so settings saved by an
+    /// earlier version have to keep reading after a new field is added.
+    #[test]
+    fn a_label_written_before_limits_existed_still_reads() {
+        let label = r#"{"name":"nginx","image":"nginx:alpine","ports":[],"env":{},"user":"","harden":true,"data_paths":[]}"#;
+        let settings: AppSettings = serde_json::from_str(label).expect("older labels still parse");
+
+        assert_eq!(settings.memory, None);
+        assert_eq!(settings.cpu_nanos, None);
+        assert_eq!(settings.limits(), "-");
+    }
+
+    #[test]
+    fn limits_reach_the_container() {
+        let mut settings = AppSettings::new("redis", "redis:alpine");
+        settings.memory = Some(256 * 1024 * 1024);
+        settings.cpu_nanos = Some(500_000_000);
+
+        let host = container_body(&settings)
+            .host_config
+            .expect("a host config is always set");
+
+        assert_eq!(host.memory, Some(268_435_456));
+        assert_eq!(host.nano_cpus, Some(500_000_000));
+    }
+
+    #[test]
+    fn an_app_without_limits_is_left_unlimited() {
+        let settings = AppSettings::new("nginx", "nginx:alpine");
+
+        let host = container_body(&settings)
+            .host_config
+            .expect("a host config is always set");
+
+        assert_eq!(host.memory, None);
+        assert_eq!(host.nano_cpus, None);
     }
 }
