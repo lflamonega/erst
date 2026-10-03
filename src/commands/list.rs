@@ -28,8 +28,8 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<String> {
     };
 
     let mut out = format!(
-        "{:<20} {:<30} {:<14} {:<14} {:<10} {:<14} {:<10}\n",
-        "NAME", "IMAGE", "STATUS", "PORTS", "USER", "LIMITS", "UPDATE"
+        "{:<20} {:<30} {:<14} {:<14} {:<10} {:<14} {:<4} {:<10}\n",
+        "NAME", "IMAGE", "STATUS", "PORTS", "USER", "LIMITS", "BOOT", "UPDATE"
     );
     for (index, app) in apps.iter().enumerate() {
         let update = match checks.get(index) {
@@ -37,13 +37,14 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<String> {
             None => "-",
         };
         out.push_str(&format!(
-            "{:<20} {:<30} {:<14} {:<14} {:<10} {:<14} {:<10}\n",
+            "{:<20} {:<30} {:<14} {:<14} {:<10} {:<14} {:<4} {:<10}\n",
             app.settings.name,
             app.settings.image,
             app.status,
             ports(app),
             user_column(app),
             app.settings.limits(),
+            boot_column(&app.settings.name),
             update
         ));
     }
@@ -69,6 +70,15 @@ fn user_column(app: &InstalledApp) -> String {
         "root!".to_string()
     } else {
         app.settings.user.trim().to_string()
+    }
+}
+
+/// Whether the app starts when you log in.
+fn boot_column(name: &str) -> &'static str {
+    if crate::autostart::enabled(name) {
+        "auto"
+    } else {
+        "-"
     }
 }
 
