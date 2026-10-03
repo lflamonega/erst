@@ -74,6 +74,15 @@ pub fn find(name: &str) -> Option<&'static Entry> {
     CATALOG.iter().find(|entry| entry.name == name)
 }
 
+/// Find the catalog entry a reference would install, matching on the image as
+/// well as the name: `owner/image` would otherwise be missed.
+pub fn find_by_reference(reference: &str) -> Option<&'static Entry> {
+    let short = image_name(reference);
+    CATALOG
+        .iter()
+        .find(|entry| image_name(entry.name) == short || image_name(entry.image) == short)
+}
+
 /// List every catalog entry.
 pub fn entries() -> &'static [Entry] {
     CATALOG
@@ -175,6 +184,23 @@ mod tests {
         assert_eq!(image_name("library/redis:7"), "redis");
         assert_eq!(image_name("ghcr.io/acme/my-app:latest"), "my-app");
         assert_eq!(image_name("registry.example.com:5000/team/APP"), "app");
+    }
+
+    #[test]
+    fn references_match_the_catalog_by_image_too() {
+        assert_eq!(
+            find_by_reference("postgres").map(|entry| entry.name),
+            Some("postgres")
+        );
+        assert_eq!(
+            find_by_reference("library/postgres:17").map(|entry| entry.name),
+            Some("postgres")
+        );
+        assert_eq!(
+            find_by_reference("louislam/uptime-kuma").map(|entry| entry.name),
+            Some("uptime-kuma")
+        );
+        assert!(find_by_reference("somethingelse").is_none());
     }
 
     #[test]

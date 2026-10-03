@@ -3,6 +3,7 @@ mod catalog;
 mod cli;
 mod commands;
 mod data;
+mod hub;
 mod runtime;
 mod tui;
 mod updates;
@@ -21,6 +22,9 @@ async fn main() -> Result<()> {
     match &cli.command {
         None | Some(Command::Dashboard) => return tui::run(runtime::connect().await?).await,
         Some(Command::Catalog) => return print(commands::catalog()),
+        Some(Command::Search { query, limit }) => {
+            return print(commands::search(query, *limit).await);
+        }
         _ => {}
     }
 
@@ -52,7 +56,9 @@ async fn main() -> Result<()> {
         Command::Remove { app, remove_data } => {
             print(commands::remove(&docker, &app, remove_data).await)
         }
-        Command::Catalog | Command::Dashboard => unreachable!("handled before connecting"),
+        Command::Catalog | Command::Dashboard | Command::Search { .. } => {
+            unreachable!("handled before connecting")
+        }
     }
 }
 

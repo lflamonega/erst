@@ -89,4 +89,12 @@ pub enum Command {
     },
     /// List the apps available in the catalog.
     Catalog,
+    /// Search Docker Hub for images.
+    Search {
+        /// What to look for.
+        query: String,
+        /// How many results to show.
+        #[arg(short = 'n', long, default_value_t = 10)]
+        limit: usize,
+    },
 }

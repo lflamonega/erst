@@ -31,6 +31,7 @@ cargo install --path .
 ```sh
 erst dashboard               # interactive TUI (also the default with no arguments)
 erst catalog                 # list the apps in the catalog
+erst search redis            # search Docker Hub for any image
 erst install nginx           # install a catalog app
 erst install postgres        # databases included
 erst install myorg/myapp --port 8080:80   # any image
@@ -52,6 +53,18 @@ erst restore postgres-1730.tar.gz   # bring the app back from a backup
 - `--env KEY=VALUE` (repeatable) for configuration.
 - `--host` to record the hostname the app is served under.
 - `--no-harden` to skip hardening for apps that need to escalate privileges.
+
+## Finding an image
+
+`erst search <words>` looks on Docker Hub, and so does `/` in the dashboard.
+Rows marked `*` are published by Docker itself, which is the safe choice when
+you cannot judge an image by its author. When a match is also in the built-in
+catalog, `erst` says so: catalog apps install with sensible ports and settings,
+while an arbitrary image installs bare.
+
+An image installed bare publishes no ports, so nothing is reachable from your
+machine. That is normal for a service another app talks to; for anything you
+want to open yourself, install it with `--port HOST:CONTAINER`.
 
 ## Data and backups
 
@@ -82,6 +95,7 @@ writing an empty archive.
 | `b`   | back up the data                                    |
 | `d`   | back up the data, then remove the app               |
 | `r`   | install from the catalog                            |
+| `/`   | search Docker Hub for any image                     |
 | `R`   | show only apps running as root                      |
 | `q`   | quit                                               |
 
