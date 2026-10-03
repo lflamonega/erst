@@ -46,6 +46,10 @@ pub enum Command {
         #[arg(long, value_name = "CPUS")]
         cpu: Option<String>,
     },
+    /// Start an app when you log in, without needing root.
+    Enable { app: String },
+    /// Stop starting an app when you log in.
+    Disable { app: String },
     /// Open the dashboard.
     Dashboard,
     /// List installed apps.

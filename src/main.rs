@@ -1,4 +1,5 @@
 mod app;
+mod autostart;
 mod catalog;
 mod cli;
 mod commands;
@@ -54,6 +55,14 @@ async fn main() -> Result<()> {
         }
         Command::Limit { app, memory, cpu } => {
             print(commands::limit(&docker, &app, memory.as_deref(), cpu.as_deref()).await)
+        }
+        Command::Enable { app } => {
+            let target = app::find(&docker, &app).await?;
+            print(autostart::set(&target.settings.name, true).await)
+        }
+        Command::Disable { app } => {
+            let target = app::find(&docker, &app).await?;
+            print(autostart::set(&target.settings.name, false).await)
         }
         Command::List { check_updates } => print(commands::list(&docker, check_updates).await),
         Command::Logs { app, follow, tail } => commands::logs(&docker, &app, follow, tail).await,

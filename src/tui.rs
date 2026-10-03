@@ -273,6 +273,15 @@ async fn handle_key(
             )
             .await?;
         }
+        KeyCode::Char('e') => {
+            let on = !crate::autostart::enabled(&name);
+            let label = if on {
+                format!("Starting {name} when you log in")
+            } else {
+                format!("Stopping {name} from starting at login")
+            };
+            act(terminal, state, label, crate::autostart::set(&name, on)).await?;
+        }
         KeyCode::Char('b') => {
             let docker = state.docker.clone();
             let destination = backup_path(&name);
@@ -579,6 +588,11 @@ fn apps(frame: &mut Frame, area: Rect, state: &State) {
             } else {
                 format!("  {limits}")
             };
+            let boot = if crate::autostart::enabled(&app.settings.name) {
+                "  auto".to_string()
+            } else {
+                String::new()
+            };
 
             ListItem::new(Line::from(vec![
                 Span::styled(
@@ -589,6 +603,7 @@ fn apps(frame: &mut Frame, area: Rect, state: &State) {
                 user,
                 Span::raw(format!("  {ports}")),
                 Span::styled(limits, Style::default().fg(Color::DarkGray)),
+                Span::styled(boot, Style::default().fg(Color::DarkGray)),
             ]))
         })
         .collect();
@@ -737,6 +752,7 @@ fn help(frame: &mut Frame, area: Rect) {
         "u        update to the latest image",
         "b        back up the data",
         "d        back up the data, then remove the app",
+        "e        start at login (erst enable)",
         "r        install from the catalog",
         "/        search Docker Hub for any image",
         "R        show only apps running as root",
@@ -760,7 +776,7 @@ fn footer(frame: &mut Frame, area: Rect, state: &State) {
         (None, Some(notice)) => notice.clone(),
         (None, None) => match state.screen {
             Screen::Apps => {
-                "j/k move · l logs · s start · x stop · u update · b backup · r catalog · / search · q quit"
+                "j/k move · l logs · s start · x stop · u update · b backup · e at login · r catalog · / search · q quit"
             }
             Screen::Catalog => "j/k move · enter install · / search · esc back",
             Screen::Search => "type and press enter · ↑/↓ pick · enter install · esc back",

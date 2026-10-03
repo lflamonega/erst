@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   later. A bare `--memory 512` means megabytes rather than the 512 bytes the
   container convention would read, and `unlimited` clears a cap. `erst list`
   and the dashboard show them in a new `LIMITS` column.
+- `erst enable <app>` starts an app when you log in, and `erst disable <app>`
+  stops it doing so, without needing root: the entry is a systemd user unit on
+  Linux or a launch agent on macOS, written where the operating system already
+  looks. `erst list` gained a `BOOT` column (`auto`), the dashboard toggles it
+  with `e`, and `erst remove` cleans the entry up. On a machine with no user
+  service manager the command says so instead of writing a file nothing would
+  run.
 
 ### Changed
 

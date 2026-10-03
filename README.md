@@ -37,6 +37,8 @@ erst install postgres        # databases included
 erst install myorg/myapp --port 8080:80   # any image
 erst install nginx --memory 256m --cpu 0.5  # cap what it may use
 erst limit nginx --memory 512m             # change (or lift) those caps
+erst enable nginx                          # start it when you log in
+erst disable nginx
 erst list                    # what is installed, running first
 erst list --check-updates    # also ask each registry for a newer image
 erst logs nginx -f           # follow the logs
@@ -91,6 +93,31 @@ be set when it is created, so `erst limit` rebuilds the app. Data in the
 declared volumes survives that; for an app with no volumes `erst` says up front
 that anything written inside the container will be replaced.
 
+## Starting at login
+
+A container restarts on its own whenever its runtime comes back — that is what
+`restart: unless-stopped` means — but nothing restarts it after the whole
+machine reboots when the runtime starts with your session or is daemonless, as
+Podman is. `erst enable <app>` closes that gap:
+
+```sh
+erst enable nginx        # start nginx when you log in
+erst disable nginx       # stop doing that
+```
+
+It writes a systemd **user** unit on Linux or a launch agent on macOS, in the
+directory the operating system already reads, so no root is needed at any
+point. `erst list` shows which apps are set up this way in the `BOOT` column
+(`auto`), and the dashboard toggles the selected app with `e`.
+
+Two things to keep apart: `erst stop <app>` stops it now, while `erst disable
+<app>` decides what happens at login. An app that is stopped but still enabled
+starts again the next time you log in, so disable it if you want it to stay
+off. `erst remove` drops the entry along with the app.
+
+On a machine without systemd running (containers, WSL) or on Windows there is
+nowhere to put such a service, and `erst enable` says so rather than pretending.
+
 ## Data and backups
 
 When an app declares volumes, `erst` puts each of them in a named volume
@@ -119,6 +146,7 @@ writing an empty archive.
 | `u`   | update to the latest image                          |
 | `b`   | back up the data                                    |
 | `d`   | back up the data, then remove the app               |
+| `e`   | start at login (`erst enable` / `erst disable`)     |
 | `r`   | install from the catalog                            |
 | `/`   | search Docker Hub for any image                     |
 | `R`   | show only apps running as root                      |
