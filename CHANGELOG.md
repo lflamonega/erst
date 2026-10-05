@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without publishing anything extra. The network is created on demand and
   removed by `erst remove` when the last app leaves it. `erst list` gained a
   `NET` column and the dashboard marks membership in brackets.
+- Stacks: `erst stacks` lists the built-in ones and how much of each you have,
+  `erst stack install <name>` brings up every app in one on the network they
+  share, and `erst stack remove <name> [--remove-data]` takes them back down. A
+  stack's dependency publishes no port at all, so it is reachable from the
+  stack and from nowhere else. A member that is already installed stops the
+  install before anything is created.
 
 ### Changed
 

@@ -29,6 +29,15 @@ pub fn full_name(name: &str) -> String {
     format!("erst-net-{}", app::safe_name(name))
 }
 
+/// Whether the network is there, ours or not.
+///
+/// The stack commands need to know after the fact whether the network their
+/// apps shared is still around, which is a question about the runtime rather
+/// than about ownership.
+pub async fn exists(docker: &Docker, name: &str) -> bool {
+    inspect(docker, &full_name(name)).await.is_some()
+}
+
 /// Create the network if it is not there yet, and return its runtime name.
 pub async fn ensure(docker: &Docker, name: &str) -> Result<String> {
     let full = full_name(name);

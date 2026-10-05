@@ -54,6 +54,13 @@ pub enum Command {
     Enable { app: String },
     /// Stop starting an app when you log in.
     Disable { app: String },
+    /// List the stacks you can install.
+    Stacks,
+    /// Install or remove a stack: several apps that belong together.
+    Stack {
+        #[command(subcommand)]
+        action: StackCommand,
+    },
     /// Open the dashboard.
     Dashboard,
     /// List installed apps.
@@ -121,5 +128,19 @@ pub enum Command {
         /// How many results to show.
         #[arg(short = 'n', long, default_value_t = 10)]
         limit: usize,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum StackCommand {
+    /// Install every app in a stack, on one shared network.
+    Install { stack: String },
+    /// Remove a stack's apps.
+    Remove {
+        /// Stack name.
+        stack: String,
+        /// Also remove their data.
+        #[arg(long)]
+        remove_data: bool,
     },
 }
