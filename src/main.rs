@@ -8,13 +8,14 @@ mod hub;
 mod limits;
 mod network;
 mod runtime;
+mod stacks;
 mod tui;
 mod updates;
 
 use anyhow::Result;
 use clap::Parser;
 
-use cli::{Cli, Command};
+use cli::{Cli, Command, StackCommand};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -68,6 +69,15 @@ async fn main() -> Result<()> {
             print(autostart::set(&target.settings.name, false).await)
         }
         Command::List { check_updates } => print(commands::list(&docker, check_updates).await),
+        Command::Stacks => print(commands::stacks::list(&docker).await),
+        Command::Stack { action } => match action {
+            StackCommand::Install { stack } => {
+                print(commands::stacks::install(&docker, &stack, &mut echo).await)
+            }
+            StackCommand::Remove { stack, remove_data } => {
+                print(commands::stacks::remove(&docker, &stack, remove_data).await)
+            }
+        },
         Command::Logs { app, follow, tail } => commands::logs(&docker, &app, follow, tail).await,
         Command::Start { app } => print(commands::start(&docker, &app).await),
         Command::Stop { app } => print(commands::stop(&docker, &app).await),

@@ -38,6 +38,9 @@ erst install myorg/myapp --port 8080:80   # any image
 erst install nginx --memory 256m --cpu 0.5  # cap what it may use
 erst install mysql --network blog   # let apps on `blog` reach it as `mysql`
 erst limit nginx --memory 512m             # change (or lift) those caps
+erst stacks                    # stacks you can install, and what you have
+erst stack install blog        # a blog and its database, wired up
+erst stack remove blog         # keeps the data
 erst enable nginx                          # start it when you log in
 erst disable nginx
 erst list                    # what is installed, running first
@@ -96,6 +99,38 @@ internet works exactly as it did before.
 
 `erst list` shows the network in the `NET` column; the dashboard puts it in
 brackets on the app's row.
+
+## Stacks
+
+Some things are two apps wearing a coat. A blog is a blog *and* a database that
+nothing outside should be able to reach, and a stack is exactly that, installed
+in one command with the wiring already done:
+
+```sh
+erst stacks                      # what there is, and what you already have
+erst stack install blog          # wordpress + a MariaDB that only it can see
+erst stack remove blog           # keeps the data
+erst stack remove blog --remove-data
+```
+
+The apps land on the stack's own network and find each other under the names
+they have inside it, which is how their own documentation spells the
+connection: `WORDPRESS_DB_HOST=blog-db`. The database publishes no port at all,
+so it is reachable from the stack and from nowhere else — which is also why two
+stacks can each bring their own without fighting over port 3306.
+
+Two things worth knowing:
+
+- An app that is already installed stops the whole install, before anything is
+  created. Half a stack is worse than none: the blog would come up talking to
+  whatever `blog-db` used to be.
+- The database uses a fixed `change-me` password, and `erst` cannot change an
+  app's environment after installing it. The password is not reachable from
+  your machine, but it is still a default.
+
+Once a stack is installed it is just apps: `erst list`, `erst logs`, `erst stop`,
+`erst update`, backups and limits all work on each member as they do on any
+other app.
 
 ## Resource limits
 

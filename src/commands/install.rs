@@ -75,7 +75,12 @@ pub async fn install_entry(docker: &Docker, entry: &Entry, report: Reporter<'_>)
     install(docker, options, report).await
 }
 
-async fn install_settings(
+/// Install already-built settings: what an app is, and how it is installed.
+///
+/// Shared with the stack commands, which build several apps' settings from
+/// one definition and then want the same pull, volumes and crash check every
+/// single install gets.
+pub async fn install_settings(
     docker: &Docker,
     mut settings: AppSettings,
     report: Reporter<'_>,

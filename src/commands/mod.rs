@@ -10,6 +10,8 @@ mod remove;
 mod search;
 mod update;
 
+pub mod stacks;
+
 pub use backup::{backup, restore};
 pub use catalog::catalog;
 pub use install::{InstallOptions, install, install_entry};
