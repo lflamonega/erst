@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-05
+
 ### Added
 
 - `erst search <words>` queries Docker Hub and lists matching images with
@@ -105,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apps restart automatically (`unless-stopped`) and their settings are stored as
   a label on the container, so no external state file is needed.
 
-[Unreleased]: https://github.com/lflamonega/erst/compare/v0.2.0...develop
+[Unreleased]: https://github.com/lflamonega/erst/compare/v0.3.0...develop
+[0.3.0]: https://github.com/lflamonega/erst/releases/tag/v0.3.0
 [0.2.0]: https://github.com/lflamonega/erst/releases/tag/v0.2.0
 [0.1.0]: https://github.com/lflamonega/erst/releases/tag/v0.1.0
