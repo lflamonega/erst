@@ -8,6 +8,7 @@ use crate::app::{self, AppSettings};
 use crate::catalog::{self, Entry};
 use crate::data;
 use crate::limits;
+use crate::network;
 
 /// How long to wait before checking whether the container survived startup.
 const STARTUP_GRACE: Duration = Duration::from_secs(2);
@@ -35,6 +36,8 @@ pub struct InstallOptions {
     pub memory: Option<String>,
     /// CPU allowance as typed: `1`, `0.5`, or `unlimited`.
     pub cpu: Option<String>,
+    /// Shared network to join, so other apps on it can reach this one by name.
+    pub network: Option<String>,
 }
 
 /// Install an app from the catalog or from any container image reference.
@@ -54,6 +57,9 @@ pub async fn install(
     }
     if let Some(value) = &options.cpu {
         settings.cpu_nanos = limits::cpu_value(value)?;
+    }
+    if let Some(name) = &options.network {
+        settings.network = Some(app::safe_name(name));
     }
 
     install_settings(docker, settings, report).await
@@ -96,13 +102,27 @@ async fn install_settings(
     }
 
     let container_name = app::container_name(&settings.name);
+
+    // The network has to exist before anything can join it. If the container
+    // never gets created, the network it would have joined is left empty and
+    // has to go too, or `erst` would be the reason a stray network accumulates.
+    if let Some(name) = &settings.network {
+        network::ensure(docker, name).await?;
+    }
+
     let options = bollard::query_parameters::CreateContainerOptionsBuilder::new()
         .name(&container_name)
         .build();
-    docker
+    if let Err(error) = docker
         .create_container(Some(options), data::with_volumes(&settings))
         .await
-        .with_context(|| format!("failed to create container `{container_name}`"))?;
+    {
+        if let Some(name) = &settings.network {
+            let _ = network::remove_if_empty(docker, name).await;
+        }
+        return Err(error)
+            .with_context(|| format!("failed to create container `{container_name}`"));
+    }
 
     docker
         .start_container(&container_name, None)
@@ -110,6 +130,9 @@ async fn install_settings(
         .with_context(|| format!("failed to start container `{container_name}`"))?;
 
     let mut message = format!("Installed {} ({container_name})", settings.name);
+    if let Some(name) = &settings.network {
+        message.push_str(&format!(", on network {name}"));
+    }
     let limits = settings.limits();
     if limits != "-" {
         message.push_str(&format!(", limited to {limits}"));

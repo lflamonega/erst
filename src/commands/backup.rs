@@ -10,6 +10,7 @@ use std::path::Path;
 
 use crate::app::{self, AppSettings};
 use crate::data;
+use crate::network;
 
 use super::Reporter;
 use super::install::pull;
@@ -83,6 +84,11 @@ pub async fn restore(docker: &Docker, source: &Path) -> Result<String> {
     // Pull progress is already covered by what the user sees before this call.
     pull(docker, &settings.image, &mut |_| {}).await?;
     data::ensure_volumes(docker, &settings).await?;
+    // A backup carries the network name, not the network: restoring on another
+    // machine has to build it there too.
+    if let Some(name) = &settings.network {
+        network::ensure(docker, name).await?;
+    }
 
     for (index, path) in settings.data_paths.iter().enumerate() {
         let bytes = volumes

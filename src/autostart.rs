@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
+use crate::app;
+
 /// The service manager this machine can use for the current user, when it has
 /// one. Linux needs systemd actually running: the `systemctl` binary also
 /// ships in containers and WSL, where nothing would ever execute the unit.
@@ -62,7 +64,7 @@ pub async fn remove(name: &str) {
 /// Where an app's autostart entry lives, when this machine has somewhere to
 /// put one.
 fn entry_path(name: &str) -> Option<PathBuf> {
-    let name = file_safe(name);
+    let name = app::safe_name(name);
     match manager()? {
         Manager::Systemd => Some(
             config_home()?
@@ -188,7 +190,7 @@ pub fn unit_file(executable: &str, app: &str) -> String {
 
 /// The macOS launch agent that starts an app when you log in.
 pub fn launch_agent(executable: &str, app: &str) -> String {
-    let label = format!("com.erst.{}", file_safe(app));
+    let label = format!("com.erst.{}", app::safe_name(app));
     let executable = xml_escape(executable);
     let app = xml_escape(app);
     format!(
@@ -220,30 +222,7 @@ fn unavailable() -> anyhow::Error {
     )
 }
 
-/// What goes in a file name, reduced to characters that are safe everywhere.
-///
-/// Not decoration: the name comes from a container label, and a label reading
-/// `../../somewhere` would otherwise choose which file gets deleted.
-fn file_safe(name: &str) -> String {
-    let cleaned: String = name
-        .chars()
-        .map(|character| {
-            let lower = character.to_ascii_lowercase();
-            if lower.is_ascii_lowercase() || lower.is_ascii_digit() || lower == '-' {
-                lower
-            } else {
-                '-'
-            }
-        })
-        .collect();
-
-    if cleaned.trim_matches('-').is_empty() {
-        "app".to_string()
-    } else {
-        cleaned
-    }
-}
-
+/// The three characters that would otherwise end an XML text node early.
 fn xml_escape(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -267,7 +246,7 @@ fn config_home() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{enabled, file_safe, launch_agent, unit_file, xml_escape};
+    use super::{enabled, launch_agent, unit_file, xml_escape};
 
     #[test]
     fn the_unit_starts_the_app_through_erst() {
@@ -295,25 +274,6 @@ mod tests {
 
         assert!(agent.contains("/opt/a&amp;b/erst"));
         assert!(!agent.contains("/opt/a&b/"));
-    }
-
-    #[test]
-    fn a_name_can_only_name_a_file() {
-        assert_eq!(file_safe("uptime-kuma"), "uptime-kuma");
-        assert_eq!(file_safe("Redis:7"), "redis-7");
-        assert_eq!(file_safe(".."), "app");
-        assert_eq!(file_safe(""), "app");
-        assert_eq!(file_safe("../../etc/passwd"), "------etc-passwd");
-    }
-
-    #[test]
-    fn nothing_survives_that_would_escape_a_directory() {
-        for name in ["../x", "..", ".", "/", "a/../../b", "c:\\windows"] {
-            let cleaned = file_safe(name);
-            assert!(!cleaned.contains('/'), "{name} became {cleaned}");
-            assert!(!cleaned.contains('\\'), "{name} became {cleaned}");
-            assert!(!cleaned.contains('.'), "{name} became {cleaned}");
-        }
     }
 
     #[test]

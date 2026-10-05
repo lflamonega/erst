@@ -3,6 +3,7 @@ use bollard::Docker;
 
 use crate::app::{self, AppSettings};
 use crate::data;
+use crate::network;
 
 /// What an app loses when its container is rebuilt.
 ///
@@ -29,6 +30,13 @@ pub async fn recreate(
     existing: Option<&str>,
 ) -> Result<()> {
     let container_name = app::container_name(&settings.name);
+
+    // The new container joins this network, so it has to be there by then.
+    // `update` and `limit` are the commands people reach for after having
+    // touched the runtime by hand, which is how networks go missing.
+    if let Some(name) = &settings.network {
+        network::ensure(docker, name).await?;
+    }
 
     if let Some(container_id) = existing {
         let options = bollard::query_parameters::RemoveContainerOptionsBuilder::new()

@@ -6,6 +6,7 @@ mod commands;
 mod data;
 mod hub;
 mod limits;
+mod network;
 mod runtime;
 mod tui;
 mod updates;
@@ -41,6 +42,7 @@ async fn main() -> Result<()> {
             no_harden,
             memory,
             cpu,
+            network,
         } => {
             let options = commands::InstallOptions {
                 reference: app,
@@ -50,6 +52,7 @@ async fn main() -> Result<()> {
                 harden: !no_harden,
                 memory,
                 cpu,
+                network,
             };
             print(commands::install(&docker, options, &mut echo).await)
         }

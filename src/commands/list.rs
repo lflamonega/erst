@@ -27,9 +27,12 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<String> {
         Vec::new()
     };
 
+    // The image is deliberately narrower than the names it holds: a network
+    // and a name say more about what an app is connected to than the last few
+    // characters of its tag.
     let mut out = format!(
-        "{:<20} {:<30} {:<14} {:<14} {:<10} {:<14} {:<4} {:<10}\n",
-        "NAME", "IMAGE", "STATUS", "PORTS", "USER", "LIMITS", "BOOT", "UPDATE"
+        "{:<20} {:<24} {:<14} {:<14} {:<10} {:<14} {:<4} {:<10} {:<10}\n",
+        "NAME", "IMAGE", "STATUS", "PORTS", "USER", "LIMITS", "BOOT", "NET", "UPDATE"
     );
     for (index, app) in apps.iter().enumerate() {
         let update = match checks.get(index) {
@@ -37,7 +40,7 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<String> {
             None => "-",
         };
         out.push_str(&format!(
-            "{:<20} {:<30} {:<14} {:<14} {:<10} {:<14} {:<4} {:<10}\n",
+            "{:<20} {:<24} {:<14} {:<14} {:<10} {:<14} {:<4} {:<10} {:<10}\n",
             app.settings.name,
             app.settings.image,
             app.status,
@@ -45,6 +48,7 @@ pub async fn list(docker: &Docker, check_updates: bool) -> Result<String> {
             user_column(app),
             app.settings.limits(),
             boot_column(&app.settings.name),
+            app.settings.network.as_deref().unwrap_or("-"),
             update
         ));
     }
