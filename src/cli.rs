@@ -34,6 +34,10 @@ pub enum Command {
         /// Cap CPUs: 1, 0.5, 2.5, or `unlimited`.
         #[arg(long, value_name = "CPUS")]
         cpu: Option<String>,
+        /// Join a shared network, so every app on it can reach this one by
+        /// name: `--network blog` puts it on `erst-net-blog`.
+        #[arg(long, value_name = "NAME")]
+        network: Option<String>,
     },
     /// Change an app's resource limits.
     Limit {

@@ -27,11 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `e`, and `erst remove` cleans the entry up. On a machine with no user
   service manager the command says so instead of writing a file nothing would
   run.
+- Shared networks: `erst install <app> --network <name>` puts an app on
+  `erst-net-<name>` alongside every other app that asked for it, and each one
+  answers to its own app name there, so `wordpress` talks to `mysql:3306`
+  without publishing anything extra. The network is created on demand and
+  removed by `erst remove` when the last app leaves it. `erst list` gained a
+  `NET` column and the dashboard marks membership in brackets.
 
 ### Changed
 
 - `erst update` now reports when an app declares no volumes, so it is visible
   that data written inside the container does not survive the rebuild.
+- `erst list` narrows the `IMAGE` column from 30 to 24 characters so the table
+  fits `NET` as well; longer references are cut off at the end rather than
+  pushing the row past everything else.
 
 ### Fixed
 

@@ -36,6 +36,7 @@ erst install nginx           # install a catalog app
 erst install postgres        # databases included
 erst install myorg/myapp --port 8080:80   # any image
 erst install nginx --memory 256m --cpu 0.5  # cap what it may use
+erst install mysql --network blog   # let apps on `blog` reach it as `mysql`
 erst limit nginx --memory 512m             # change (or lift) those caps
 erst enable nginx                          # start it when you log in
 erst disable nginx
@@ -57,6 +58,7 @@ erst restore postgres-1730.tar.gz   # bring the app back from a backup
 - `--env KEY=VALUE` (repeatable) for configuration.
 - `--host` to record the hostname the app is served under.
 - `--memory` and `--cpu` to cap resources (see below).
+- `--network NAME` to put the app on a shared network (see below).
 - `--no-harden` to skip hardening for apps that need to escalate privileges.
 
 ## Finding an image
@@ -70,6 +72,30 @@ while an arbitrary image installs bare.
 An image installed bare publishes no ports, so nothing is reachable from your
 machine. That is normal for a service another app talks to; for anything you
 want to open yourself, install it with `--port HOST:CONTAINER`.
+
+## Apps that talk to each other
+
+Apps installed separately can only meet through ports published on your
+machine. Give them a shared network instead and they find each other by name:
+
+```sh
+erst install mysql --network blog
+erst install wordpress --network blog
+```
+
+Both land on `erst-net-blog`, where `wordpress` reaches the database at
+`mysql:3306`. The name it answers to is the app's own name, not the container
+name `erst-app-mysql`. The network is built the first time an app asks for it
+and `erst remove` takes it away again once the last app on it has gone.
+
+Being on a shared network also means being *off* the runtime's default one: an
+app on `blog` reaches nothing that is not on `blog` with it. That is usually
+the point — it is what turns a group of apps into a group rather than a list —
+and it costs nothing in the other direction, since outbound access to the
+internet works exactly as it did before.
+
+`erst list` shows the network in the `NET` column; the dashboard puts it in
+brackets on the app's row.
 
 ## Resource limits
 

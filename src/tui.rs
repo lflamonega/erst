@@ -593,6 +593,12 @@ fn apps(frame: &mut Frame, area: Rect, state: &State) {
             } else {
                 String::new()
             };
+            // Brackets because it is a membership: everything inside them can
+            // reach this app by its name alone.
+            let network = match &app.settings.network {
+                Some(name) => format!("  [{name}]"),
+                None => String::new(),
+            };
 
             ListItem::new(Line::from(vec![
                 Span::styled(
@@ -602,6 +608,7 @@ fn apps(frame: &mut Frame, area: Rect, state: &State) {
                 Span::raw(format!("{status:<9} ")),
                 user,
                 Span::raw(format!("  {ports}")),
+                Span::styled(network, Style::default().fg(Color::DarkGray)),
                 Span::styled(limits, Style::default().fg(Color::DarkGray)),
                 Span::styled(boot, Style::default().fg(Color::DarkGray)),
             ]))
