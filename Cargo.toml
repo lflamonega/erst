@@ -1,6 +1,6 @@
 [package]
 name = "erst"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Install and manage containers from the command line, without knowing containers."
 license = "MIT"
